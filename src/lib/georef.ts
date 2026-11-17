@@ -99,15 +99,26 @@ export function realizePose(nominal: Pose, s: Sigma, seed: number): Pose {
   const r = rng(seed * 104729 + 7);
   const [sx, sy, sz] = posSigma(s.positionError),
     sa = s.attitudeError;
-
   return {
     ...nominal,
     position: nominal.position
       .clone()
       .add(new Vector3(sx * randn(r), sy * randn(r), sz * randn(r))),
-    roll: sa.roll * randn(r),
-    pitch: sa.pitch * randn(r),
-    yaw: sa.yaw * randn(r),
+    roll: nominal.roll + sa.roll * randn(r),
+    pitch: nominal.pitch + sa.pitch * randn(r),
+    yaw: nominal.yaw + sa.yaw * randn(r),
+  };
+}
+
+/** The navigation solution that, with the error drawn for `seed` and the current sigmas, corresponds to this fixed truth. */
+export function navFromTruth(truth: Pose, s: Sigma, seed: number): Pose {
+  const t0 = realizePose(truth, s, seed); // truth + e
+  return {
+    ...truth,
+    position: truth.position.clone().multiplyScalar(2).sub(t0.position), // truth - e
+    roll: 2 * truth.roll - t0.roll,
+    pitch: 2 * truth.pitch - t0.pitch,
+    yaw: 2 * truth.yaw - t0.yaw,
   };
 }
 

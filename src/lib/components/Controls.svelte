@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { params } from "../contexts/state.svelte";
+  import { params, renavigate } from "../contexts/state.svelte";
   import { uncertainty } from "../errors";
   import {
     type NumKey,
@@ -184,8 +184,11 @@
       ? (params[r.group] as Record<string, number>)[r.key]
       : params[r.key];
   const write = (r: Row, v: number) => {
-    if ("group" in r) (params[r.group] as Record<string, number>)[r.key] = v;
-    else params[r.key] = v;
+    if ("group" in r) {
+      (params[r.group] as Record<string, number>)[r.key] = v;
+      if (r.group === "positionError" || r.group === "attitudeError")
+        renavigate();
+    } else params[r.key] = v;
   };
 
   /** Frustum layers offered in each imagery mode. */

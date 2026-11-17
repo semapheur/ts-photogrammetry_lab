@@ -12,8 +12,8 @@ import type {
 import { makeDem } from "../dem";
 import { correct } from "../gcp";
 import { generateTerrain } from "../generate";
-import { locate } from "../georef";
-import { pixelRay } from "../sensor";
+import { locate, navFromTruth } from "../georef";
+import { makeCam, pixelRay, setPose } from "../sensor";
 import { stereoSolve } from "../stereo";
 import { intersect } from "../terrain";
 
@@ -193,6 +193,30 @@ export const stereo = $state({
   pR: null as [number, number] | null,
   showTruth: false,
 });
+
+/** Error sliders moved: the truth stays fixed, the navigation solution is re-derived from it. */
+export function renavigate() {
+  const f = frameStore.frame;
+  if (!f) return;
+  const nav = navFromTruth(f.truth.pose, params, session.frameId);
+  const cam = makeCam();
+  setPose(cam, nav);
+  f.nominal = { cam, pose: nav };
+  if (!gcp.result) {
+    // a GCP-corrected camera is left alone
+    f.cam = cam;
+    f.pose = nav;
+  }
+  session.rev++;
+  console.log(
+    nav.position.toArray(),
+    nav.roll,
+    nav.pitch,
+    nav.yaw,
+    f.truth.pose.roll,
+    f.truth.pose.pitch,
+  );
+}
 
 class StereoCalc {
   /** Re-evaluated live when either click or any error / matching input changes. */

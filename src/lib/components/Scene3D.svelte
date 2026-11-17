@@ -24,7 +24,7 @@
     IMG_W,
     IMG_H,
   } from "../sensor";
-  import { realizePose, realizePair } from "../georef";
+  import { realizePose, realizePair, navFromTruth } from "../georef";
   import { buildWorld, type World } from "../world";
   import { strokeCompass, compassLetter } from "../compass";
   import type { DemSource, Frame, Pose, TerrainSource } from "../types";
@@ -582,10 +582,9 @@
     }
   });
 
-  // Re-draw the hidden truth whenever an error setting changes, so the sliders act on the captured frame
+  // Sliders after capture: the picture and the true pose stay fixed; the navigation solution is re-derived from them
   $effect(() => {
-    void session.frameId; // new capture -> same seed as capture() used
-    // read every sigma explicitly so the dependencies don't rely on what realizePose touches
+    void session.frameId;
     void [
       params.positionError.east,
       params.positionError.north,
@@ -597,13 +596,53 @@
     const f = frameStore.frame;
     if (!f || !ready) return;
 
-    const truthPose = realizePose(f.nominal.pose, params, session.frameId);
+    const nav = navFromTruth(f.truth.pose, params, session.frameId);
     untrack(() => {
       const cam = makeCam();
-      setPose(cam, truthPose);
-      f.truth = { cam, pose: truthPose };
-      session.rev++; // frameStore isn't reactive, so this is what retriggers the ground-point effects
+      setPose(cam, nav);
+      f.nominal = { cam, pose: nav };
+      if (!gcp.result) {
+        // keep GCP-corrected frames as they are
+        f.cam = cam;
+        f.pose = nav;
+      }
+      session.rev++;
     });
+  });
+
+  // Mono: clicked ground point
+  $effect(() => {
+    void session.rev;
+    const groundPoint = ground.value,
+      frame = frameStore.frame,
+      px = session.pixel,
+      asSphere = sphere;
+    if (!ready) return;
+    const on = !!groundPoint && !!frame && mono;
+    groundRoot.visible = on;
+    if (!on || !groundPoint || !frame || !px) return;
+
+    const groundTruth = intersect(
+      env.terrain.dsm,
+      frame.truth.cam.position,
+      pixelRay(frame.truth.cam, px[0], px[1]),
+    );
+
+    trueDot.visible = !!groundTruth;
+
+    groundRay.geometry.setFromPoints([frame.cam.position, groundPoint.p]);
+    groundDot.position.copy(groundPoint.p);
+    flatDot.position.copy(groundPoint.pf);
+
+    if (!groundTruth) return;
+    trueDot.position.copy(groundTruth);
+    groundSensor.set(
+      groundTruth,
+      { cep: groundPoint.cepS, lep: groundPoint.lepS, sep: groundPoint.sepS },
+      asSphere,
+      0.4,
+    );
+    groundTotal.set(groundTruth, groundPoint, asSphere, 0.4);
   });
 
   // Mono: frustum of the captured image (blue) and, after GCP correction, the reprojected one (green)
@@ -622,38 +661,6 @@
     corrected.show(b);
     if (a && f) captured.update(f.nominal.cam, terrain);
     if (b && f) corrected.update(f.cam, terrain);
-  });
-
-  // Mono: clicked ground point
-  $effect(() => {
-    void session.rev;
-    const groundPoint = ground.value,
-      frame = frameStore.frame,
-      px = session.pixel,
-      asSphere = sphere;
-    if (!ready) return;
-    const on = !!groundPoint && !!frame && mono;
-    groundRoot.visible = on;
-    if (!on || !groundPoint || !frame || !px) return;
-
-    const groundTruth =
-      intersect(
-        env.terrain.dsm,
-        frame.truth.cam.position,
-        pixelRay(frame.truth.cam, px[0], px[1]),
-      ) ?? groundPoint.p;
-
-    groundRay.geometry.setFromPoints([frame.cam.position, groundPoint.p]);
-    groundDot.position.copy(groundPoint.p);
-    flatDot.position.copy(groundPoint.pf);
-    trueDot.position.copy(groundTruth);
-    groundSensor.set(
-      groundTruth,
-      { cep: groundPoint.cepS, lep: groundPoint.lepS, sep: groundPoint.sepS },
-      asSphere,
-      0.4,
-    );
-    groundTotal.set(groundTruth, groundPoint, asSphere, 0.4);
   });
 
   // Stereo: frusta of the captured pair
