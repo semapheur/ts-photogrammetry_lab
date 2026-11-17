@@ -582,34 +582,6 @@
     }
   });
 
-  // Sliders after capture: the picture and the true pose stay fixed; the navigation solution is re-derived from them
-  $effect(() => {
-    void session.frameId;
-    void [
-      params.positionError.east,
-      params.positionError.north,
-      params.positionError.up,
-      params.attitudeError.roll,
-      params.attitudeError.pitch,
-      params.attitudeError.yaw,
-    ];
-    const f = frameStore.frame;
-    if (!f || !ready) return;
-
-    const nav = navFromTruth(f.truth.pose, params, session.frameId);
-    untrack(() => {
-      const cam = makeCam();
-      setPose(cam, nav);
-      f.nominal = { cam, pose: nav };
-      if (!gcp.result) {
-        // keep GCP-corrected frames as they are
-        f.cam = cam;
-        f.pose = nav;
-      }
-      session.rev++;
-    });
-  });
-
   // Mono: clicked ground point
   $effect(() => {
     void session.rev;

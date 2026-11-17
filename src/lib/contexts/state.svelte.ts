@@ -208,14 +208,6 @@ export function renavigate() {
     f.pose = nav;
   }
   session.rev++;
-  console.log(
-    nav.position.toArray(),
-    nav.roll,
-    nav.pitch,
-    nav.yaw,
-    f.truth.pose.roll,
-    f.truth.pose.pitch,
-  );
 }
 
 class StereoCalc {
